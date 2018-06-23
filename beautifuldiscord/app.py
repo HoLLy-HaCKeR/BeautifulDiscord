@@ -131,14 +131,16 @@ def repack_asar():
 
 def parse_args():
     description = """\
-Unpacks Discord and adds CSS hot-reloading.
+Unpacks Discord and adds CSS/JavaScript hot-reloading.
 
 Discord has to be open for this to work. When this tool is ran,
 Discord will close and then be relaunched when the tool completes.
-CSS files must have the ".css" extension.
+CSS files must have the ".css" extension, and JavaScript files must
+have the ".js" extension.
 """
     parser = argparse.ArgumentParser(description=description.strip())
-    parser.add_argument('--css', metavar='file_or_dir', help='Location of the file or directory to watch')
+    parser.add_argument('--css', metavar='file_or_dir', help='Location of the CSS file or directory to watch')
+    parser.add_argument('--js', metavar='file_or_dir', help='Location of the JavaScript file or directory to watch')
     parser.add_argument('--revert', action='store_true', help='Reverts any changes made to Discord (does not delete CSS)')
     args = parser.parse_args()
     return args
@@ -206,10 +208,15 @@ def main():
         args.css = os.path.abspath(args.css)
     else:
         args.css = os.path.join(discord.script_path, 'discord-custom.css')
+    if args.js:
+        args.js = os.path.abspath(args.js)
+    else:
+        args.js = os.path.join(discord.script_path, 'discord-custom.js')
 
     os.chdir(discord.script_path)
 
     args.css = os.path.abspath(args.css)
+    args.js = os.path.abspath(args.js)
 
     discord.terminate()
 
@@ -219,99 +226,130 @@ def main():
     if not os.path.exists(args.css):
         with open(args.css, 'w', encoding='utf-8') as f:
             f.write('/* put your custom css here. */\n')
+    if not os.path.exists(args.js):
+        with open(args.js, 'w', encoding='utf-8') as f:
+            f.write('// put your custom js here.\n')
 
     if not extract_asar():
         discord.launch()
         return
 
-    css_injection_script = textwrap.dedent("""\
+    injection_script = textwrap.dedent("""\
         window._fs = require("fs");
         window._path = require("path");
-        window._fileWatcher = null;
+        window._fileWatcherCSS = null;
+        window._fileWatcherJS = null;
         window._styleTag = {};
+        window._scriptTag = {};
 
-        window.applyCSS = function(path, name) {
-          var customCSS = window._fs.readFileSync(path, "utf-8");
-          if (!window._styleTag.hasOwnProperty(name)) {
-            window._styleTag[name] = document.createElement("style");
-            document.head.appendChild(window._styleTag[name]);
-          }
-          window._styleTag[name].innerHTML = customCSS;
-        }
+        window.applyCSS = function(path, name) { window._apply(path, name, "CSS"); };
+        window.applyJS =  function(path, name) { window._apply(path, name, "JS");  };
 
-        window.clearCSS = function(name) {
-          if (window._styleTag.hasOwnProperty(name)) {
-            window._styleTag[name].innerHTML = "";
-            window._styleTag[name].parentElement.removeChild(window._styleTag[name]);
-            delete window._styleTag[name];
-          }
-        }
-
-        window.watchCSS = function(path) {
-          if (window._fs.lstatSync(path).isDirectory()) {
-            files = window._fs.readdirSync(path);
-            dirname = path;
-          } else {
-            files = [window._path.basename(path)];
-            dirname = window._path.dirname(path);
-          }
-
-          for (var i = 0; i < files.length; i++) {
-            var file = files[i];
-            if (file.endsWith(".css")) {
-              window.applyCSS(window._path.join(dirname, file), file)
+        window._apply = function(path, name, type) {
+            var elementType = type == "CSS" ? "style" : "script";
+            var tag = type == "CSS" ? window._styleTag : window._scriptTag;
+            var customContent = window._fs.readFileSync(path, "utf-8");
+            if (!tag.hasOwnProperty(name)) {
+                tag[name] = document.createElement(elementType);
+                document.head.appendChild(tag[name]);
             }
-          }
+            tag[name].innerHTML = customContent;
+        }
 
-          if(window._fileWatcher === null) {
-            window._fileWatcher = window._fs.watch(path, { encoding: "utf-8" },
-              function(eventType, filename) {
-                if (!filename.endsWith(".css")) return;
-                path = window._path.join(dirname, filename);
-                if (eventType === "rename" && !window._fs.existsSync(path)) {
-                  window.clearCSS(filename);
-                } else {
-                  window.applyCSS(window._path.join(dirname, filename), filename);
+        window.clearCSS = function(name) { window._clear(name, "CSS"); };
+        window.clearJS =  function(name) { window._clear(name, "JS");  };
+
+        window._clear = function(name) {
+            var tag = type == "CSS" ? window._styleTag : window._scriptTag;
+            if (tag.hasOwnProperty(name)) {
+                tag[name].innerHTML = "";
+                tag[name].parentElement.removeChild(tag[name]);
+                delete tag[name];
+            }
+        }
+
+        window.watchCSS = function(path) { window.watch(path, "CSS"); };
+        window.watchJS  = function(path) { window.watch(path, "JS");  };
+
+        window.watch = function(path, type) {
+            var ext = '.' + type.toLowerCase();
+            var fnApply = window["apply" + type];
+            var fnClear = window["clear" + type];
+            var watcher = window["_fileWatcher" + type];
+
+            if (window._fs.lstatSync(path).isDirectory()) {
+                files = window._fs.readdirSync(path);
+                dirname = path;
+            } else {
+                files = [window._path.basename(path)];
+                dirname = window._path.dirname(path);
+            }
+
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                if (file.endsWith(ext)) {
+                    fnApply(window._path.join(dirname, file), file)
                 }
-              }
-            );
-          }
-        };
-
-        window.tearDownCSS = function() {
-          for (var key in window._styleTag) {
-            if (window._styleTag.hasOwnProperty(key)) {
-              window.clearCSS(key)
             }
-          }
-          if(window._fileWatcher !== null) { window._fileWatcher.close(); window._fileWatcher = null; }
+
+            if(watcher === null) {
+                watcher = window._fs.watch(path, { encoding: "utf-8" },
+                    function(eventType, filename) {
+                        if (!filename.endsWith(ext)) return;
+                        path = window._path.join(dirname, filename);
+                        if (eventType === "rename" && !window._fs.existsSync(path)) {
+                            fnClear(filename);
+                        } else {
+                            fnApply(window._path.join(dirname, filename), filename);
+                        }
+                    });
+            }
         };
 
-        window.applyAndWatchCSS = function(path) {
-          window.tearDownCSS();
-          window.watchCSS(path);
+        window.tearDownCSS = function() { window.tearDown("CSS"); };
+        window.tearDownJS  = function() { window.tearDown("JS");  };
+
+        window.tearDown = function(type) {
+            var watcher = window["_fileWatcher" + type];
+            var tag = type == "CSS" ? window._styleTag : window._scriptTag;
+            var fnClear = window["clear" + type];
+            for (var key in tag) {
+                if (tag.hasOwnProperty(key)) {
+                    fnClear(key);
+                }
+            }
+            if(watcher !== null) { watcher.close(); watcher = null; }
+        };
+
+        window.applyAndWatchCSS = function(path) { window.applyAndWatch(path, "CSS"); };
+        window.applyAndWatchJS  = function(path) { window.applyAndWatch(path, "JS");  };
+
+        window.applyAndWatch = function(path, type) {
+            window.tearDown(type);
+            window.watch(path, type);
         };
 
         window.applyAndWatchCSS('%s');
-    """ % args.css.replace('\\', '\\\\'))
+        window.applyAndWatchJS('%s');
+    """ % (args.css.replace('\\', '\\\\'), args.js.replace('\\', '\\\\')))
 
 
-    css_injection_path = os.path.expanduser(os.path.join('~', '.beautifuldiscord'))
-    if not os.path.exists(css_injection_path):
-        os.mkdir(css_injection_path)
+    injection_path = os.path.expanduser(os.path.join('~', '.beautifuldiscord'))
+    if not os.path.exists(injection_path):
+        os.mkdir(injection_path)
 
-    css_injection_file = os.path.abspath(os.path.join(css_injection_path, 'cssInjection.js'))
-    with open(css_injection_file, 'w', encoding='utf-8') as f:
-        f.write(css_injection_script)
+    injection_file = os.path.abspath(os.path.join(injection_path, 'injection.js'))
+    with open(injection_file, 'w', encoding='utf-8') as f:
+        f.write(injection_script)
 
-    css_reload_script = textwrap.dedent("""\
+    reload_script = textwrap.dedent("""\
         mainWindow.webContents.on('dom-ready', function () {
           var _fs = require('fs');
           mainWindow.webContents.executeJavaScript(
             _fs.readFileSync('%s', 'utf-8')
           );
         });
-    """ % css_injection_file.replace('\\', '\\\\'))
+    """ % injection_file.replace('\\', '\\\\'))
 
     with open(discord.script_file, 'rb') as f:
         entire_thing = f.read()
@@ -327,7 +365,7 @@ def main():
         return
 
     # yikes
-    to_write = entire_thing[:index] + css_reload_script.encode('utf-8') + entire_thing[index:]
+    to_write = entire_thing[:index] + reload_script.encode('utf-8') + entire_thing[index:]
     to_write = to_write.replace(b'nodeIntegration: false', b'nodeIntegration: true', 1)
 
     with open(discord.script_file, 'wb') as f:
@@ -338,7 +376,8 @@ def main():
 
     print(
         '\nDone!\n' +
-        '\nYou may now edit your %s file,\n' % os.path.abspath(args.css) +
+        '\nYou may now edit your %s file (CSS),' % os.path.abspath(args.css) +
+        'or %s file (JS),\n' % os.path.abspath(args.js) +
         "which will be reloaded whenever it's saved.\n" +
         '\nRelaunching Discord now...'
     )
