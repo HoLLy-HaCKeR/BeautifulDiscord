@@ -198,25 +198,25 @@ def revert_changes(discord):
     discord.launch()
 
 def remove_csp():
-	shutil.move('./index.js', './original_index.js')
+    shutil.move('./index.js', './original_index.js')
 
-	no_csp_script = textwrap.dedent("""\
-		require("electron").session.defaultSession.webRequest.onHeadersReceived(function(details, callback) {
-			const responseHeaders = {};
-			for (let header in details.responseHeaders) {
-				if (!header.match(/^content-security/i)) {
-					responseHeaders[header] = details.responseHeaders[header]
-				}
-			} callback({
-				cancel: false,
-				responseHeaders
-			});
-		});
+    no_csp_script = textwrap.dedent("""\
+        require("electron").session.defaultSession.webRequest.onHeadersReceived(function(details, callback) {
+            const responseHeaders = {};
+            for (let header in details.responseHeaders) {
+                if (!header.match(/^content-security/i)) {
+                    responseHeaders[header] = details.responseHeaders[header]
+                }
+            } callback({
+                cancel: false,
+                responseHeaders
+            });
+        });
 
-		module.exports = require('./core.asar');""")
-	
-	with open('./index.js', 'w', encoding='utf-8') as f:
-		f.write(no_csp_script)
+        module.exports = require('./core.asar');""")
+    
+    with open('./index.js', 'w', encoding='utf-8') as f:
+        f.write(no_csp_script)
 
 def main():
     args = parse_args()
@@ -343,28 +343,28 @@ def main():
             if(watcher !== null) { watcher.close(); watcher = null; }
         };
         
-	window.removeDuplicateCSS = function(){
-        	const styles = [...document.getElementsByTagName("style")];
-        	const styleTags = window._styleTag;
+        window.removeDuplicateCSS = function(){
+            const styles = [...document.getElementsByTagName("style")];
+            const styleTags = window._styleTag;
         
-        	for(let key in styleTags){
-        		for (var i = 0; i < styles.length; i++) {
-        			const keyStyle = styleTags[key];
-        			const curStyle = styles[i];
+            for(let key in styleTags){
+                for (var i = 0; i < styles.length; i++) {
+                    const keyStyle = styleTags[key];
+                    const curStyle = styles[i];
         
-        			if(curStyle !== keyStyle) {
-        				const compare	 = keyStyle.innerText.localeCompare(curStyle.innerText);
+                    if(curStyle !== keyStyle) {
+                        const compare    = keyStyle.innerText.localeCompare(curStyle.innerText);
         
-        				if(compare === 0){
-        					const parent = curStyle.parentElement;
-        					parent.removeChild(curStyle);
-        				}
-        			}
-        		}
-        	}
+                        if(compare === 0){
+                            const parent = curStyle.parentElement;
+                            parent.removeChild(curStyle);
+                        }
+                    }
+                }
+            }
         };
-	
-	
+    
+    
         window.applyAndWatchCSS = function(path) { window.applyAndWatch(path, "CSS"); };
         window.applyAndWatchJS  = function(path) { window.applyAndWatch(path, "JS");  };
 
@@ -375,7 +375,7 @@ def main():
 
         window.applyAndWatchCSS('%s');
         window.applyAndWatchJS('%s');
-	 window.removeDuplicateCSS();
+        window.removeDuplicateCSS();
     """ % (args.css.replace('\\', '\\\\'), args.js.replace('\\', '\\\\')))
 
 
