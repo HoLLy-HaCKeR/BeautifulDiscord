@@ -375,7 +375,7 @@ def main():
 
         window.applyAndWatchCSS('%s');
         window.applyAndWatchJS('%s');
-	 window.removeDuplicateCSS(%s);
+	 window.removeDuplicateCSS();
     """ % (args.css.replace('\\', '\\\\'), args.js.replace('\\', '\\\\')))
 
 
