@@ -5,22 +5,28 @@ Simple Python script that adds CSS (w/ hot-reload) and JS injection to Discord.
 
 ![demo gif](http://i.imgur.com/xq4HS5f.gif)
 
-## Usage
+## Installation
 
-Just invoke the script when installed. If you don't pass the `--css`/`--js` 
+Assuming you have python3 installed, run the following command to fetch the 
+code from GitHub and install it on your system. If you use Windows, you may 
+have to call python through `python` instead of `python3`.
+
+```
+$ python3 -m pip install -U https://github.com/HoLLy-HaCKeR/BeautifulDiscord/archive/master.zip
+```
+
+Then, just invoke the script when installed. If you don't pass the `--css`/`--js` 
 flag, the css/js files will be placed wherever the Discord app resources are 
 found, which is not a very convenient location.
-
-**NOTE:** Discord has to be running for this to work in first place.
-The script works by scanning the active processes and looking for the Discord ones.
-
-(yes, this also means you can fool the program into trying to apply this to some random program named Discord)
 
 ```
 $ beautifuldiscord --css C:\mystuff\myown.css --js C:\mystuff\myown.js
 ```
 
-## Reverting
+**NOTE:** Discord has to be running for this to work in first place.
+The script works by scanning the active processes and looking for the Discord ones.
+
+## Uninstalling
 
 Pass the `--revert` flag to restore Discord to its initial state. You can also do this manually if your Discord
 install gets screwed up, by first locating where Discord stores its resources:
@@ -36,27 +42,12 @@ You should then remove the existing `core.asar` and rename `original_core.asar` 
 
 ```
 $ beautifuldiscord --revert
-0: Found DiscordPTB.exe
-1: Found DiscordCanary.exe
-Discord executable to use (number): 1
-Reverted changes, no more CSS hot-reload :(
-$
 ```
 
 You can also run it as a package - i.e. `python3 -m beautifuldiscord` - if somehow you cannot
 install it as a script that you can run from anywhere.
 
-## Installing
-
-```
-python3 -m pip install -U https://github.com/HoLLy-HaCKeR/BeautifulDiscord/archive/master.zip
-```
-
-Usage of a virtual environment is recommended, to not pollute your global package space.
-
-## Uninstalling
-
-NOTE: Make sure to revert the changes first.
+Afterwards, you can completely uninstall the discord package too:
 
 ```
 python3 -m pip uninstall beautifuldiscord
